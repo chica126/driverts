@@ -122,7 +122,7 @@
             const statusDiv = document.getElementById('status');
             
             btn.disabled = true;
-            statusDiv.innerText = "Menyimpan data...";
+            statusDiv.innerText = "Mengecek & Menyimpan data...";
             statusDiv.style.color = "blue";
 
             const formattedDate = formatDateToSpreadsheet(document.getElementById('tanggal_picker').value);
@@ -133,8 +133,14 @@
             fetch(submitUrl)
                 .then(response => response.json())
                 .then(data => {
-                    statusDiv.innerText = "Berhasil disimpan! Estimasi OT: " + data.ot;
-                    statusDiv.style.color = "green";
+                    if (data.status === "Berhasil") {
+                        statusDiv.innerText = "Berhasil disimpan! Estimasi OT: " + data.ot;
+                        statusDiv.style.color = "green";
+                    } else {
+                        // Menampilkan pesan error jika duplikat
+                        statusDiv.innerText = data.message;
+                        statusDiv.style.color = "red";
+                    }
                     btn.disabled = false;
                     loadTableData(); // Tabel otomatis memuat data terbaru
                 })
