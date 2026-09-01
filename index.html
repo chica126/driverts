@@ -8,7 +8,6 @@
         body { font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; background-color: #f0f2f5;}
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;}
         
-        /* Style khusus untuk header identitas */
         .header-card { background-color: #2196F3; color: white; text-align: center; }
         .header-card h1 { margin: 0; font-size: 1.5rem; }
         .header-card p { margin: 5px 0 0 0; font-size: 1rem; }
@@ -25,10 +24,10 @@
         th, td { border: 1px solid #ddd; padding: 10px 8px; text-align: center; }
         th { background-color: #f8f9fa; color: #333; }
         .ot-highlight { color: #d9534f; font-weight: bold; }
+        .activity-text { font-size: 0.75rem; color: #555; font-style: italic; text-align: left; }
     </style>
 </head>
 <body>
-    <!-- Header Aplikasi -->
     <div class="card header-card">
         <h1>Timesheet App</h1>
         <p>Nama: <strong>Maryadi</strong></p>
@@ -45,6 +44,9 @@
                 <select id="jam_dropdown" required></select>
                 <select id="menit_dropdown" required></select>
             </div>
+            
+            <label for="aktivitas">Aktivitas Terakhir (Wajib):</label>
+            <input type="text" id="aktivitas" placeholder="Misalnya: Antar Elyssa les dan renang." required>
 
             <button type="submit" id="btnSubmit">Simpan & Hitung OT</button>
         </form>
@@ -61,19 +63,18 @@
                     <th>In</th>
                     <th>Out</th>
                     <th>OT</th>
+                    <th>Aktivitas</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
-                <tr><td colspan="4">Memuat data...</td></tr>
+                <tr><td colspan="5">Memuat data...</td></tr>
             </tbody>
         </table>
     </div>
 
     <script>
-        // PASTIKAN URL INI ADALAH URL DARI HASIL "NEW DEPLOYMENT" TERBARU ANDA
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxtOSW5Xzeemwh5zCsq3vp9hBc6ANVmhcOSD0-4CulOyBquoo4f1Vhq4jFlCFOq4BOt/exec";
 
-        // Populate Dropdown
         const jamDropdown = document.getElementById('jam_dropdown');
         const menitDropdown = document.getElementById('menit_dropdown');
         for (let i = 0; i < 24; i++) jamDropdown.add(new Option(String(i).padStart(2, '0')));
@@ -85,7 +86,6 @@
             return date.getDate() + "-" + monthNames[date.getMonth()];
         }
 
-        // Set default date & time
         document.addEventListener('DOMContentLoaded', () => {
             const today = new Date();
             document.getElementById('tanggal_picker').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -95,39 +95,38 @@
             loadTableData();
         });
 
-        // Load Data function (GET Request)
         function loadTableData() {
             const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '<tr><td colspan="4">Memuat data...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5">Memuat data...</td></tr>';
             
             fetch(WEB_APP_URL + "?action=read")
                 .then(response => response.json())
                 .then(data => {
                     tbody.innerHTML = '';
                     if(data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4">Belum ada data</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="5">Belum ada data</td></tr>';
                         return;
                     }
                     data.forEach(row => {
-                        // Cek highlight merah (jika nilai OT bukan 0 dan tidak kosong)
                         let otClass = (row.ot && row.ot !== "0" && row.ot !== 0 && row.ot !== "") ? "ot-highlight" : "";
+                        let aktivitasTeks = row.aktivitas || '-';
                         let tr = `<tr>
                             <td>${row.tanggal}</td>
                             <td>${row.clockin || '-'}</td>
                             <td>${row.clockout || '-'}</td>
                             <td class="${otClass}">${row.ot || '-'}</td>
+                            <td class="activity-text">${aktivitasTeks}</td>
                         </tr>`;
                         tbody.innerHTML += tr;
                     });
                 })
                 .catch(error => {
-                    tbody.innerHTML = '<tr><td colspan="4" style="color:red;">Gagal memuat data</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" style="color:red;">Gagal memuat data</td></tr>';
                 });
         }
 
         document.getElementById('btnRefresh').addEventListener('click', loadTableData);
 
-        // Submit Data (GET Request Bypass CORS)
         document.getElementById('reportForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -140,17 +139,18 @@
 
             const formattedDate = formatDateToSpreadsheet(document.getElementById('tanggal_picker').value);
             const jamSelesai = jamDropdown.value + ":" + menitDropdown.value;
+            // Menggunakan encodeURIComponent agar teks panjang berspasi aman saat dikirim via URL GET
+            const aktivitasVal = encodeURIComponent(document.getElementById('aktivitas').value);
             
-            const submitUrl = `${WEB_APP_URL}?action=write&tanggal=${formattedDate}&jam_selesai=${jamSelesai}`;
+            const submitUrl = `${WEB_APP_URL}?action=write&tanggal=${formattedDate}&jam_selesai=${jamSelesai}&aktivitas=${aktivitasVal}`;
 
             fetch(submitUrl)
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === "Berhasil") {
-                        // Menambahkan teks "Jam" murni di tampilan HTML saja agar mudah dibaca, 
-                        // sedangkan di Google Sheets tetap tersimpan sebagai angka murni.
                         statusDiv.innerText = "Berhasil disimpan! Estimasi OT: " + data.ot + " Jam";
                         statusDiv.style.color = "green";
+                        document.getElementById('aktivitas').value = ""; // Reset form aktivitas
                     } else {
                         statusDiv.innerText = data.message;
                         statusDiv.style.color = "red";
