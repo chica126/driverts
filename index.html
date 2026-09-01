@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan Jam Selesai Driver</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: auto; }
+        label { display: block; margin-top: 15px; font-weight: bold; }
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; }
+        .time-container { display: flex; gap: 10px; }
+        button { background-color: #4CAF50; color: white; border: none; font-size: 16px; margin-top: 20px; cursor: pointer; }
+        #status { margin-top: 15px; font-weight: bold; text-align: center; }
+    </style>
+</head>
+<body>
+    <h2>Lapor Jam Selesai</h2>
+    <form id="reportForm">
+        <label for="tanggal_picker">Tanggal:</label>
+        <input type="date" id="tanggal_picker" required>
+        
+        <!-- Hidden input untuk format tanggal ke Google Sheets -->
+        <input type="hidden" id="tanggal" name="tanggal">
+
+        <label>Jam Selesai (24 Jam):</label>
+        <div class="time-container">
+            <select id="jam_dropdown" required></select>
+            <select id="menit_dropdown" required></select>
+        </div>
+        
+        <!-- Hidden input untuk format waktu yang dikirim ke Google Sheets -->
+        <input type="hidden" id="jam_selesai" name="jam_selesai">
+
+        <button type="submit">Kirim Data</button>
+    </form>
+    <div id="status"></div>
+
+    <script>
+        // Populate Dropdown Jam (00-23) dan Menit (00-59)
+        const jamDropdown = document.getElementById('jam_dropdown');
+        const menitDropdown = document.getElementById('menit_dropdown');
+
+        for (let i = 0; i < 24; i++) {
+            let h = String(i).padStart(2, '0');
+            jamDropdown.add(new Option(h, h));
+        }
+        for (let i = 0; i < 60; i++) {
+            let m = String(i).padStart(2, '0');
+            menitDropdown.add(new Option(m, m));
+        }
+
+        // Fungsi format tanggal (DD-MMM)
+        function formatDateToSpreadsheet(dateString) {
+            const date = new Date(dateString);
+            const day = date.getDate();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const month = monthNames[date.getMonth()];
+            return day + "-" + month;
+        }
+
+        // Set default tanggal hari ini
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            document.getElementById('tanggal_picker').value = `${year}-${month}-${day}`;
+            
+            // Set default waktu saat ini
+            const currentHour = String(today.getHours()).padStart(2, '0');
+            const currentMinute = String(today.getMinutes()).padStart(2, '0');
+            jamDropdown.value = currentHour;
+            menitDropdown.value = currentMinute;
+        });
+
+        document.getElementById('reportForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Set nilai tanggal
+            const pickerValue = document.getElementById('tanggal_picker').value;
+            document.getElementById('tanggal').value = formatDateToSpreadsheet(pickerValue);
+
+            // Set nilai jam dalam format HH:MM
+            document.getElementById('jam_selesai').value = jamDropdown.value + ":" + menitDropdown.value;
+
+            var statusDiv = document.getElementById('status');
+            statusDiv.innerText = "Mengirim...";
+            statusDiv.style.color = "blue";
+
+            var formData = new FormData(this);
+            var params = new URLSearchParams(formData).toString();
+            var webAppUrl = "https://script.google.com/macros/s/AKfycbxtOSW5Xzeemwh5zCsq3vp9hBc6ANVmhcOSD0-4CulOyBquoo4f1Vhq4jFlCFOq4BOt/exec"; 
+
+            fetch(webAppUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: params
+            })
+            .then(response => response.text())
+            .then(data => {
+                statusDiv.innerText = data;
+                statusDiv.style.color = data.includes("Berhasil") ? "green" : "red";
+                if(data.includes("Berhasil")) {
+                    // Reset waktu ke default atau biarkan saja
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = "Gagal terhubung ke server.";
+                statusDiv.style.color = "red";
+            });
+        });
+    </script>
+</body>
+</html>
