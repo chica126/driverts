@@ -7,6 +7,12 @@
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; background-color: #f0f2f5;}
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;}
+        
+        /* Style khusus untuk header identitas */
+        .header-card { background-color: #2196F3; color: white; text-align: center; }
+        .header-card h1 { margin: 0; font-size: 1.5rem; }
+        .header-card p { margin: 5px 0 0 0; font-size: 1rem; }
+        
         h2 { margin-top: 0; font-size: 1.2rem; color: #333; }
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem;}
         input, select, button { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;}
@@ -22,6 +28,12 @@
     </style>
 </head>
 <body>
+    <!-- Header Aplikasi -->
+    <div class="card header-card">
+        <h1>Timesheet App</h1>
+        <p>Nama: <strong>Maryadi</strong></p>
+    </div>
+
     <div class="card">
         <h2>Input Jam Selesai</h2>
         <form id="reportForm">
@@ -97,7 +109,8 @@
                         return;
                     }
                     data.forEach(row => {
-                        let otClass = (row.ot && row.ot !== "0" && row.ot !== "") ? "ot-highlight" : "";
+                        // Cek highlight merah (jika nilai OT bukan 0 dan tidak kosong)
+                        let otClass = (row.ot && row.ot !== "0" && row.ot !== 0 && row.ot !== "") ? "ot-highlight" : "";
                         let tr = `<tr>
                             <td>${row.tanggal}</td>
                             <td>${row.clockin || '-'}</td>
@@ -134,15 +147,16 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === "Berhasil") {
-                        statusDiv.innerText = "Berhasil disimpan! Estimasi OT: " + data.ot;
+                        // Menambahkan teks "Jam" murni di tampilan HTML saja agar mudah dibaca, 
+                        // sedangkan di Google Sheets tetap tersimpan sebagai angka murni.
+                        statusDiv.innerText = "Berhasil disimpan! Estimasi OT: " + data.ot + " Jam";
                         statusDiv.style.color = "green";
                     } else {
-                        // Menampilkan pesan error jika duplikat
                         statusDiv.innerText = data.message;
                         statusDiv.style.color = "red";
                     }
                     btn.disabled = false;
-                    loadTableData(); // Tabel otomatis memuat data terbaru
+                    loadTableData(); 
                 })
                 .catch(error => {
                     statusDiv.innerText = "Gagal terhubung ke server.";
