@@ -3,113 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Jam Selesai Driver</title>
+    <title>Timelog & Laporan OT Driver</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: auto; }
-        label { display: block; margin-top: 15px; font-weight: bold; }
-        input, select, button { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; background-color: #f0f2f5;}
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;}
+        h2 { margin-top: 0; font-size: 1.2rem; color: #333; }
+        label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem;}
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;}
         .time-container { display: flex; gap: 10px; }
-        button { background-color: #4CAF50; color: white; border: none; font-size: 16px; margin-top: 20px; cursor: pointer; }
-        #status { margin-top: 15px; font-weight: bold; text-align: center; }
+        button { background-color: #4CAF50; color: white; border: none; font-size: 16px; margin-top: 20px; cursor: pointer; font-weight: bold; }
+        button:disabled { background-color: #a5d6a7; cursor: not-allowed; }
+        #status { margin-top: 15px; font-weight: bold; text-align: center; font-size: 0.9rem;}
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85rem; }
+        th, td { border: 1px solid #ddd; padding: 10px 8px; text-align: center; }
+        th { background-color: #f8f9fa; color: #333; }
+        .ot-highlight { color: #d9534f; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h2>Lapor Jam Selesai</h2>
-    <form id="reportForm">
-        <label for="tanggal_picker">Tanggal:</label>
-        <input type="date" id="tanggal_picker" required>
-        
-        <!-- Hidden input untuk format tanggal ke Google Sheets -->
-        <input type="hidden" id="tanggal" name="tanggal">
+    <div class="card">
+        <h2>Input Jam Selesai</h2>
+        <form id="reportForm">
+            <label for="tanggal_picker">Tanggal:</label>
+            <input type="date" id="tanggal_picker" required>
+            
+            <label>Jam Selesai (24 Jam):</label>
+            <div class="time-container">
+                <select id="jam_dropdown" required></select>
+                <select id="menit_dropdown" required></select>
+            </div>
 
-        <label>Jam Selesai (24 Jam):</label>
-        <div class="time-container">
-            <select id="jam_dropdown" required></select>
-            <select id="menit_dropdown" required></select>
-        </div>
-        
-        <!-- Hidden input untuk format waktu yang dikirim ke Google Sheets -->
-        <input type="hidden" id="jam_selesai" name="jam_selesai">
+            <button type="submit" id="btnSubmit">Simpan & Hitung OT</button>
+        </form>
+        <div id="status"></div>
+    </div>
 
-        <button type="submit">Kirim Data</button>
-    </form>
-    <div id="status"></div>
+    <div class="card">
+        <h2>Riwayat Timelog & OT</h2>
+        <button id="btnRefresh" style="background-color: #2196F3; margin-top:0; padding: 8px; font-size: 0.9rem;">Muat Ulang Data</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tanggal</th>
+                    <th>In</th>
+                    <th>Out</th>
+                    <th>OT</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="4">Memuat data...</td></tr>
+            </tbody>
+        </table>
+    </div>
 
     <script>
-        // Populate Dropdown Jam (00-23) dan Menit (00-59)
+        // PASTIKAN URL INI ADALAH URL DARI HASIL "NEW DEPLOYMENT" TERBARU ANDA
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxtOSW5Xzeemwh5zCsq3vp9hBc6ANVmhcOSD0-4CulOyBquoo4f1Vhq4jFlCFOq4BOt/exec";
+
+        // Populate Dropdown
         const jamDropdown = document.getElementById('jam_dropdown');
         const menitDropdown = document.getElementById('menit_dropdown');
+        for (let i = 0; i < 24; i++) jamDropdown.add(new Option(String(i).padStart(2, '0')));
+        for (let i = 0; i < 60; i++) menitDropdown.add(new Option(String(i).padStart(2, '0')));
 
-        for (let i = 0; i < 24; i++) {
-            let h = String(i).padStart(2, '0');
-            jamDropdown.add(new Option(h, h));
-        }
-        for (let i = 0; i < 60; i++) {
-            let m = String(i).padStart(2, '0');
-            menitDropdown.add(new Option(m, m));
-        }
-
-        // Fungsi format tanggal (DD-MMM)
         function formatDateToSpreadsheet(dateString) {
             const date = new Date(dateString);
-            const day = date.getDate();
             const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const month = monthNames[date.getMonth()];
-            return day + "-" + month;
+            return date.getDate() + "-" + monthNames[date.getMonth()];
         }
 
-        // Set default tanggal hari ini
-        document.addEventListener('DOMContentLoaded', (event) => {
+        // Set default date & time
+        document.addEventListener('DOMContentLoaded', () => {
             const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            document.getElementById('tanggal_picker').value = `${year}-${month}-${day}`;
+            document.getElementById('tanggal_picker').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            jamDropdown.value = String(today.getHours()).padStart(2, '0');
+            menitDropdown.value = String(today.getMinutes()).padStart(2, '0');
             
-            // Set default waktu saat ini
-            const currentHour = String(today.getHours()).padStart(2, '0');
-            const currentMinute = String(today.getMinutes()).padStart(2, '0');
-            jamDropdown.value = currentHour;
-            menitDropdown.value = currentMinute;
+            loadTableData();
         });
 
+        // Load Data function (GET Request)
+        function loadTableData() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '<tr><td colspan="4">Memuat data...</td></tr>';
+            
+            fetch(WEB_APP_URL + "?action=read")
+                .then(response => response.json())
+                .then(data => {
+                    tbody.innerHTML = '';
+                    if(data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4">Belum ada data</td></tr>';
+                        return;
+                    }
+                    data.forEach(row => {
+                        let otClass = (row.ot && row.ot !== "0" && row.ot !== "") ? "ot-highlight" : "";
+                        let tr = `<tr>
+                            <td>${row.tanggal}</td>
+                            <td>${row.clockin || '-'}</td>
+                            <td>${row.clockout || '-'}</td>
+                            <td class="${otClass}">${row.ot || '-'}</td>
+                        </tr>`;
+                        tbody.innerHTML += tr;
+                    });
+                })
+                .catch(error => {
+                    tbody.innerHTML = '<tr><td colspan="4" style="color:red;">Gagal memuat data</td></tr>';
+                });
+        }
+
+        document.getElementById('btnRefresh').addEventListener('click', loadTableData);
+
+        // Submit Data (GET Request Bypass CORS)
         document.getElementById('reportForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            // Set nilai tanggal
-            const pickerValue = document.getElementById('tanggal_picker').value;
-            document.getElementById('tanggal').value = formatDateToSpreadsheet(pickerValue);
-
-            // Set nilai jam dalam format HH:MM
-            document.getElementById('jam_selesai').value = jamDropdown.value + ":" + menitDropdown.value;
-
-            var statusDiv = document.getElementById('status');
-            statusDiv.innerText = "Mengirim...";
+            const btn = document.getElementById('btnSubmit');
+            const statusDiv = document.getElementById('status');
+            
+            btn.disabled = true;
+            statusDiv.innerText = "Menyimpan data...";
             statusDiv.style.color = "blue";
 
-            var formData = new FormData(this);
-            var params = new URLSearchParams(formData).toString();
-            var webAppUrl = "https://script.google.com/macros/s/AKfycbxtOSW5Xzeemwh5zCsq3vp9hBc6ANVmhcOSD0-4CulOyBquoo4f1Vhq4jFlCFOq4BOt/exec"; 
+            const formattedDate = formatDateToSpreadsheet(document.getElementById('tanggal_picker').value);
+            const jamSelesai = jamDropdown.value + ":" + menitDropdown.value;
+            
+            const submitUrl = `${WEB_APP_URL}?action=write&tanggal=${formattedDate}&jam_selesai=${jamSelesai}`;
 
-            fetch(webAppUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: params
-            })
-            .then(response => response.text())
-            .then(data => {
-                statusDiv.innerText = data;
-                statusDiv.style.color = data.includes("Berhasil") ? "green" : "red";
-                if(data.includes("Berhasil")) {
-                    // Reset waktu ke default atau biarkan saja
-                }
-            })
-            .catch(error => {
-                statusDiv.innerText = "Gagal terhubung ke server.";
-                statusDiv.style.color = "red";
-            });
+            fetch(submitUrl)
+                .then(response => response.json())
+                .then(data => {
+                    statusDiv.innerText = "Berhasil disimpan! Estimasi OT: " + data.ot;
+                    statusDiv.style.color = "green";
+                    btn.disabled = false;
+                    loadTableData(); // Tabel otomatis memuat data terbaru
+                })
+                .catch(error => {
+                    statusDiv.innerText = "Gagal terhubung ke server.";
+                    statusDiv.style.color = "red";
+                    btn.disabled = false;
+                });
         });
     </script>
 </body>
